@@ -12,7 +12,7 @@ import (
 	"os"
 )
 
-// Struktur Request & Response
+// Struktur Tetap Sama
 type Payload struct {
 	Text string `json:"text"`
 	Key  string `json:"key"`
@@ -23,24 +23,42 @@ type Response struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// Fungsi bantu untuk setting CORS
+func setupCORS(w *http.ResponseWriter, r *http.Request) bool {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+	// Jika browser tanya "Boleh gak?", kita jawab "Boleh" (OK)
+	if r.Method == "OPTIONS" {
+		(*w).WriteHeader(http.StatusOK)
+		return true
+	}
+	return false
+}
+
 func main() {
-    http.HandleFunc("/encrypt", encryptHandler)
-    http.HandleFunc("/decrypt", decryptHandler)
+	http.HandleFunc("/encrypt", encryptHandler)
+	http.HandleFunc("/decrypt", decryptHandler)
 
-    port := os.Getenv("PORT")
-    if port == "" {
-        port = "8080"
-    }
-
-    log.Printf("Service Cipher starting on port %s...", port)
-
-    err := http.ListenAndServe(":"+port, nil)
-    if err != nil {
-        log.Fatal("GAGAL START: ", err)
-    }
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	
+	log.Printf("Service A (Cipher) with CORS running on port %s...", port)
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatal("GAGAL START: ", err)
+	}
 }
 
 func encryptHandler(w http.ResponseWriter, r *http.Request) {
+	// Panggil setup CORS di awal
+	if setupCORS(&w, r) {
+		return // Stop di sini kalau cuma request OPTIONS
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -53,7 +71,7 @@ func encryptHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(p.Key) != 32 {
-		p.Key = "12345678901234567890123456789012" 
+		p.Key = "12345678901234567890123456789012"
 	}
 
 	block, _ := aes.NewCipher([]byte(p.Key))
@@ -69,6 +87,11 @@ func encryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func decryptHandler(w http.ResponseWriter, r *http.Request) {
+	// Panggil setup CORS di awal juga
+	if setupCORS(&w, r) {
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
