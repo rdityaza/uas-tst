@@ -1,14 +1,13 @@
-# Stage 1: Build
-FROM golang:alpine AS builder
-WORKDIR /app
-COPY . .
-RUN go build -o main .
-
-# Stage 2: Run (Sangat ringan, cuma pakai Alpine)
+# Kita pakai Alpine polos (kecil banget, cuma 5MB)
 FROM alpine:latest
-WORKDIR /root/
-COPY --from=builder /app/main .
 
-# Expose port
-EXPOSE 8080
-CMD ["./main"]
+WORKDIR /root/
+
+# Copy file matang dari laptop ke dalam image
+COPY cipher-app .
+
+# Kasih izin biar bisa dijalankan
+RUN chmod +x cipher-app
+
+# Jalankan aplikasinya
+CMD ["./cipher-app"]
