@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 )
@@ -14,7 +15,7 @@ import (
 // Struktur Request & Response
 type Payload struct {
 	Text string `json:"text"`
-	Key  string `json:"key"` // Key rahasia (harus 32 karakter untuk AES-256)
+	Key  string `json:"key"`
 }
 
 type Response struct {
@@ -23,16 +24,20 @@ type Response struct {
 }
 
 func main() {
-	http.HandleFunc("/encrypt", encryptHandler)
-	http.HandleFunc("/decrypt", decryptHandler)
+    http.HandleFunc("/encrypt", encryptHandler)
+    http.HandleFunc("/decrypt", decryptHandler)
 
-	// Jalan di port 8080
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	println("Service A (Cipher) running on port " + port + "...")
-	http.ListenAndServe(":"+port, nil)
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080"
+    }
+
+    log.Printf("Service Cipher starting on port %s...", port)
+
+    err := http.ListenAndServe(":"+port, nil)
+    if err != nil {
+        log.Fatal("GAGAL START: ", err)
+    }
 }
 
 func encryptHandler(w http.ResponseWriter, r *http.Request) {
@@ -47,10 +52,8 @@ func encryptHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Pastikan Key 32 byte (bisa di-hardcode atau dari user)
-	// Agar simpel buat tugas, jika user tidak kirim key, kita pakai default
 	if len(p.Key) != 32 {
-		p.Key = "12345678901234567890123456789012" // Default Key 32 chars
+		p.Key = "12345678901234567890123456789012" 
 	}
 
 	block, _ := aes.NewCipher([]byte(p.Key))
