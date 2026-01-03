@@ -23,13 +23,11 @@ type Response struct {
 	Error  string `json:"error,omitempty"`
 }
 
-// Fungsi bantu untuk setting CORS
 func setupCORS(w *http.ResponseWriter, r *http.Request) bool {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
-	// Jika browser tanya "Boleh gak?", kita jawab "Boleh" (OK)
 	if r.Method == "OPTIONS" {
 		(*w).WriteHeader(http.StatusOK)
 		return true
@@ -40,6 +38,9 @@ func setupCORS(w *http.ResponseWriter, r *http.Request) bool {
 func main() {
 	http.HandleFunc("/encrypt", encryptHandler)
 	http.HandleFunc("/decrypt", decryptHandler)
+
+	fs := http.FileServer(http.Dir("./static"))
+    http.Handle("/", fs)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -54,9 +55,8 @@ func main() {
 }
 
 func encryptHandler(w http.ResponseWriter, r *http.Request) {
-	// Panggil setup CORS di awal
 	if setupCORS(&w, r) {
-		return // Stop di sini kalau cuma request OPTIONS
+		return 
 	}
 
 	if r.Method != http.MethodPost {
@@ -87,7 +87,6 @@ func encryptHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func decryptHandler(w http.ResponseWriter, r *http.Request) {
-	// Panggil setup CORS di awal juga
 	if setupCORS(&w, r) {
 		return
 	}

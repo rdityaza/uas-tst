@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Chat App (Tugas TST)</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-container { height: calc(100vh - 180px); }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+<div id="app" class="max-w-md mx-auto bg-white min-h-screen shadow-lg relative">
+
+    <div v-if="!isLoggedIn" class="p-8 flex flex-col justify-center h-screen">
+        <h1 class="text-3xl font-bold text-blue-600 mb-2 text-center">🔐 Secure Chat</h1>
+        <p class="text-center text-gray-500 mb-8 text-sm">Backend by Radit & Hakim</p>
+
+        <div v-if="!isRegisterMode">
+            <h2 class="font-bold text-lg mb-4 text-gray-700">Login</h2>
+            <input v-model="loginForm.username" type="text" placeholder="Username" class="border p-3 rounded mb-3 w-full">
+            <input v-model="loginForm.password" type="password" placeholder="Password" class="border p-3 rounded mb-3 w-full">
+            
+            <button @click="doLogin" :disabled="isLoading" 
+                class="w-full bg-blue-600 text-white p-3 rounded font-bold hover:bg-blue-700 transition disabled:bg-gray-400">
+                {{ isLoading ? 'Loading...' : 'MASUK' }}
+            </button>
+            
+            <p class="mt-4 text-center text-sm">
+                Belum punya akun? <a href="#" @click.prevent="isRegisterMode = true" class="text-blue-600 font-bold">Daftar di sini</a>
+            </p>
+        </div>
+
+        <div v-else>
+            <h2 class="font-bold text-lg mb-4 text-gray-700">Daftar Akun Baru</h2>
+            <input v-model="registerForm.username" type="text" placeholder="Username Baru" class="border p-3 rounded mb-3 w-full">
+            <input v-model="registerForm.password" type="password" placeholder="Password Baru" class="border p-3 rounded mb-3 w-full">
+            
+            <button @click="doRegister" :disabled="isLoading"
+                class="w-full bg-green-600 text-white p-3 rounded font-bold hover:bg-green-700 transition disabled:bg-gray-400">
+                {{ isLoading ? 'Mendaftar...' : 'DAFTAR SEKARANG' }}
+            </button>
+
+            <p class="mt-4 text-center text-sm">
+                Sudah punya akun? <a href="#" @click.prevent="isRegisterMode = false" class="text-blue-600 font-bold">Login di sini</a>
+            </p>
+        </div>
+    </div>
+
+    <div v-else>
+        <div class="bg-blue-600 p-4 text-white flex justify-between items-center shadow sticky top-0 z-10">
+            <div>
+                <h2 class="font-bold text-lg">{{ user.username }}</h2>
+                <p class="text-xs opacity-80 cursor-pointer" @click="copyMyID">ID: {{ user.id }} (Klik copy)</p>
+            </div>
+            <div class="flex gap-2">
+                <span class="text-xs bg-blue-800 px-2 py-1 rounded self-center" v-if="friendId">Chat dgn: {{ friendId }}</span>
+                <button @click="logout" class="text-sm bg-red-500 px-3 py-1 rounded hover:bg-red-600">Logout</button>
+            </div>
+        </div>
+
+        <div class="chat-container overflow-y-auto p-4 space-y-3 bg-gray-50" id="chatBox">
+            <p v-if="messages.length === 0" class="text-center text-gray-400 text-sm mt-10">Belum ada pesan. Mulai kirim chat!</p>
+            
+            <div v-for="msg in messages" :key="msg.id" 
+                 :class="{'text-right': msg.senderId === user.id, 'text-left': msg.senderId !== user.id}">
+                
+                <div class="inline-block p-3 rounded-lg max-w-[85%] text-left shadow-sm"
+                    :class="msg.senderId === user.id ? 'bg-blue-100 text-blue-900 rounded-tr-none' : 'bg-white border text-gray-800 rounded-tl-none'">
+                    
+                    <p class="font-bold text-[10px] mb-1 text-gray-500">{{ msg.senderId === user.id ? 'Saya' : 'Teman' }}</p>
+                    
+                    <div @click="toggleMessage(msg)" class="cursor-pointer hover:opacity-80 select-none">
+                        <p v-if="msg.isDecrypted" class="text-sm">
+                            {{ msg.content }} 
+                            <span class="text-[10px] text-green-600 font-bold ml-1">✓ (Asli)</span>
+                        </p>
+                        
+                        <p v-else class="italic text-gray-400 text-xs break-all">
+                            🔒 {{ msg.cipherText || msg.content }} 
+                            <span class="text-blue-600 font-bold underline ml-1 text-[10px]">[KLIK UTK BACA]</span>
+                        </p>
+                    </div>
+                    
+                    <span class="text-[10px] text-gray-400 block mt-1 text-right">{{ formatDate(msg.timestamp) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-0 w-full bg-white p-3 border-t flex gap-2">
+            <input v-model="newMessage" @keyup.enter="sendMessage" type="text" placeholder="Ketik pesan rahasia..." class="flex-1 border p-2 rounded outline-none focus:border-blue-500">
+            <button @click="sendMessage" class="bg-blue-600 text-white px-4 rounded font-bold hover:bg-blue-700">➤</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const { createApp } = Vue
+
+    createApp({
+        data() {
+            return {
+                // --- KONFIGURASI API (JANGAN LUPA SESUAIKAN) ---
+                apiHakim: 'https://hakim.tugastst.my.id/api', // Pastikan pakai /api jika perlu
+                apiRadit: 'https://radit.tugastst.my.id', 
+                secretKey: '12345678901234567890123456789012', 
+
+                // --- STATE ---
+                isLoggedIn: false,
+                isRegisterMode: false, // Mode Toggle Login/Register
+                isLoading: false,
+                user: null,         
+                friendId: '',       
+                
+                loginForm: { username: '', password: '' },
+                registerForm: { username: '', password: '' }, // Form Data Register
+                newMessage: '',
+                messages: [],
+                pollingInterval: null
+            }
+        },
+        methods: {
+            // --- FITUR BARU: REGISTER ---
+            async doRegister() {
+                if(!this.registerForm.username || !this.registerForm.password) {
+                    alert("Isi username & password!"); return;
+                }
+                this.isLoading = true;
+                try {
+                    // Endpoint: POST /auth/register { username, password }
+                    const res = await fetch(`${this.apiHakim}/auth/register`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.registerForm)
+                    });
+                    const data = await res.json();
+                    
+                    if(res.ok) {
+                        alert("Registrasi Berhasil! ID Anda: " + data.id + "\nSilakan Login sekarang.");
+                        this.isRegisterMode = false; // Pindah ke tampilan Login
+                        // Otomatis isi kolom login biar gampang
+                        this.loginForm.username = this.registerForm.username;
+                        this.registerForm = { username: '', password: '' };
+                    } else {
+                        alert("Gagal Daftar: " + (data.error || JSON.stringify(data)));
+                    }
+                } catch (e) {
+                    alert("Error Register: " + e + "\n(Pastikan CORS aktif di backend Hakim)");
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            // --- FITUR LOGIN ---
+            async doLogin() {
+                if(!this.loginForm.username || !this.loginForm.password) {
+                    alert("Isi username & password!"); return;
+                }
+                this.isLoading = true;
+                try {
+                    const res = await fetch(`${this.apiHakim}/auth/login`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.loginForm)
+                    });
+                    const data = await res.json();
+                    
+                    if (res.ok) {
+                        this.user = data; 
+                        this.isLoggedIn = true;
+                        
+                        // Prompt ID Teman
+                        setTimeout(() => {
+                            const target = prompt("Login Berhasil! \nMasukkan ID Teman Chat (Receiver ID):", "user-id-teman");
+                            if(target) {
+                                this.friendId = target;
+                                this.startChatPolling();
+                            } else {
+                                alert("Anda belum set ID Teman. Chat mungkin tidak terkirim.");
+                            }
+                        }, 500);
+                    } else {
+                        alert('Login Gagal: ' + (data.error || 'Cek console'));
+                    }
+                } catch (e) {
+                    alert('Error Koneksi Login: ' + e);
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            // --- LOAD CHAT ---
+            async loadChatHistory() {
+                if (!this.friendId || !this.user) return;
+                try {
+                    const url = `${this.apiHakim}/chat/history?myId=${this.user.id}&friendId=${this.friendId}`;
+                    const res = await fetch(url);
+                    const rawMessages = await res.json();
+
+                    if (res.ok && Array.isArray(rawMessages)) {
+                        // Hanya update jika panjang data beda (biar gak flicker)
+                        if (rawMessages.length !== this.messages.length) {
+                             this.messages = rawMessages.map(msg => ({
+                                id: msg.id,
+                                senderId: msg.senderId,
+                                content: msg.content || msg.message, 
+                                timestamp: msg.timestamp,
+                                isDecrypted: false 
+                            }));
+                            this.scrollToBottom();
+                        }
+                    }
+                } catch (e) { console.error(e); }
+            },
+
+            startChatPolling() {
+                this.loadChatHistory();
+                this.pollingInterval = setInterval(() => {
+                    this.loadChatHistory();
+                }, 2000);
+            },
+
+            // --- KIRIM (ENKRIPSI -> KIRIM) ---
+            async sendMessage() {
+                if (!this.newMessage || !this.friendId) {
+                    alert("Pesan kosong atau ID Teman belum diisi!"); return;
+                }
+                const textOriginal = this.newMessage;
+                this.newMessage = ''; 
+
+                try {
+                    // 1. ENKRIPSI (API Radit)
+                    const resEncrypt = await fetch(`${this.apiRadit}/encrypt`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ text: textOriginal, key: this.secretKey })
+                    });
+                    const dataEncrypt = await resEncrypt.json();
+                    if(!dataEncrypt.result) throw new Error("Gagal Enkripsi");
+                    
+                    // 2. KIRIM (API Hakim)
+                    const resSend = await fetch(`${this.apiHakim}/chat/send`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            senderId: this.user.id,
+                            receiverId: this.friendId,
+                            message: dataEncrypt.result
+                        })
+                    });
+
+                    if (!resSend.ok) {
+                        const err = await resSend.json();
+                        alert("Gagal Kirim: " + err.error);
+                        this.newMessage = textOriginal;
+                    } else {
+                        this.loadChatHistory();
+                    }
+                } catch (e) {
+                    alert("Error: " + e);
+                    this.newMessage = textOriginal;
+                }
+            },
+
+            // --- DEKRIPSI ---
+            async decryptMessage(msg) {
+                if(msg.isDecrypted) return;
+                try {
+                    const res = await fetch(`${this.apiRadit}/decrypt`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ text: msg.content, key: this.secretKey })
+                    });
+                    const data = await res.json();
+                    if(data.result) {
+                        msg.content = data.result;
+                        msg.isDecrypted = true;
+                    } else {
+                        alert("Gagal dekripsi");
+                    }
+                } catch (e) { alert("Error Dekripsi: " + e); }
+            },
+
+            async toggleMessage(msg) {
+                if (!msg.cipherText) msg.cipherText = msg.content;
+
+                if (msg.isDecrypted) {
+                    msg.content = msg.cipherText; 
+                    msg.isDecrypted = false;
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`${this.apiRadit}/decrypt`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ text: msg.cipherText, key: this.secretKey })
+                    });
+                    const data = await res.json();
+                    
+                    if(data.result) {
+                        msg.content = data.result; 
+                        msg.isDecrypted = true;
+                    }
+                } catch (e) { alert("Gagal decrypt"); }
+            },
+
+            // Utility
+            logout() {
+                this.isLoggedIn = false;
+                this.user = null;
+                this.messages = [];
+                clearInterval(this.pollingInterval);
+            },
+            formatDate(dateStr) {
+                if(!dateStr) return '';
+                return new Date(dateStr).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            },
+            scrollToBottom() {
+                setTimeout(() => {
+                    const el = document.getElementById('chatBox');
+                    if(el) el.scrollTop = el.scrollHeight;
+                }, 100);
+            },
+            copyMyID() {
+                if(this.user && this.user.id) {
+                    navigator.clipboard.writeText(this.user.id);
+                    alert("ID disalin: " + this.user.id);
+                }
+            }
+        }
+    }).mount('#app')
+</script>
+</body>
+</html>
