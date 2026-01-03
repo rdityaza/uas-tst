@@ -1,13 +1,16 @@
-# Kita pakai Alpine polos (kecil banget, cuma 5MB)
+# Pakai Alpine polos
 FROM alpine:latest
 
 WORKDIR /root/
 
-# Copy file matang dari laptop ke dalam image
+# 1. Copy file aplikasi 
 COPY cipher-app .
 
-# Kasih izin biar bisa dijalankan
+# 2. Copy folder frontend 
+COPY static ./static
+
+# 3. Beri izin eksekusi
 RUN chmod +x cipher-app
 
-# Jalankan aplikasinya
+# 4. Jalankan
 CMD ["./cipher-app"]
