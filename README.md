@@ -22,6 +22,15 @@ Layanan ini dirancang sebagai *Generic Domain* yang bersifat *stateless*. Fungsi
 | `POST` | `/encrypt` | Mengubah teks menjadi sandi | `{"text": "...", "key": "..."}` |
 | `POST` | `/decrypt` | Mengembalikan teks asli | `{"text": "...", "key": "..."}` |
 
+### 🔑 Catatan Penting Pengujian (Key)
+
+Algoritma AES-256 yang digunakan mewajibkan panjang kunci **TEPAT 32 Karakter (Bytes)**. Jika panjang kunci tidak sesuai (kurang atau lebih), API akan mengembalikan error. Key yang digunakan pada saat /decrypt harus SAMA PERSIS dengan Key yang digunakan saat /encrypt.
+
+Untuk kemudahan pengujian, silakan gunakan **Default Key** berikut:
+
+```text
+12345678901234567890123456789012
+
 ## ⚙️ Cara Menjalankan (Docker)
 ```bash
 # Build Image
