@@ -71,7 +71,9 @@ func encryptHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(p.Key) != 32 {
-		p.Key = "12345678901234567890123456789012"
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Key harus tepat 32 karakter!"})
+		return 
 	}
 
 	block, _ := aes.NewCipher([]byte(p.Key))
@@ -100,7 +102,9 @@ func decryptHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&p)
 
 	if len(p.Key) != 32 {
-		p.Key = "12345678901234567890123456789012"
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Key harus tepat 32 karakter!"})
+		return 
 	}
 
 	ciphertext, _ := base64.StdEncoding.DecodeString(p.Text)
